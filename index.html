@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Clinical Lingua-RT Suite</title>
+    <!-- Web App Manifest for Phone Installation -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#020617">
+    <link rel="apple-touch-icon" href="logo.png">
+    
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+Kannada:wght@400;600&family=Noto+Sans+Malayalam&family=Noto+Sans+Tamil&family=Noto+Sans+Telugu&family=Noto+Sans+Devanagari&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Dashboard / Main Menu -->
+        <div id="menu-screen" class="screen active fade-in">
+            <!-- Top Navigation Bar -->
+            <nav class="saas-nav">
+                <div class="nav-brand">
+                    <img src="logo.png" alt="ClinLingua RT Logo" class="app-logo">
+                    <div class="brand-text">
+                        <h1>ClinLingua <span>Suite</span></h1>
+                        <p>Cognitive & Linguistic Diagnostics</p>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <label for="language-select"><i class="fa-solid fa-earth-asia"></i></label>
+                    <select id="language-select" class="beautiful-select">
+                        <option value="en">English (English)</option>
+                        <option value="kn" selected>ಕನ್ನಡ (Kannada)</option>
+                        <option value="hi">हिन्दी (Hindi)</option>
+                        <option value="te">తెలుగు (Telugu)</option>
+                        <option value="ml">മലയാളം (Malayalam)</option>
+                        <option value="ta">தமிழ் (Tamil)</option>
+                    </select>
+                </div>
+            </nav>
+
+            <!-- Main Dashboard Area -->
+            <main class="dashboard-main">
+                <div class="dashboard-header">
+                    <h2>Assessment Modules</h2>
+                    <p>Select a clinical protocol to launch</p>
+                </div>
+
+                <div class="module-grid">
+                    <div class="module-card card-gradient-1" onclick="app.startRTTask('familiarity')">
+                        <div class="card-icon"><i class="fa-solid fa-brain"></i></div>
+                        <div class="card-content">
+                            <h3>Word Familiarity</h3>
+                            <p>Reaction test for familiar vs. non-familiar items.</p>
+                        </div>
+                        <div class="card-action"><i class="fa-solid fa-arrow-right"></i></div>
+                    </div>
+
+                    <div class="module-card card-gradient-2" onclick="app.startRTTask('ambiguity')">
+                        <div class="card-icon"><i class="fa-solid fa-arrows-split-up-and-left"></i></div>
+                        <div class="card-content">
+                            <h3>Semantic Ambiguity</h3>
+                            <p>Reaction test for ambiguous vs. unambiguous words.</p>
+                        </div>
+                        <div class="card-action"><i class="fa-solid fa-arrow-right"></i></div>
+                    </div>
+
+                    <div class="module-card card-gradient-3" onclick="app.startRTTask('priming')">
+                        <div class="card-icon"><i class="fa-solid fa-bolt"></i></div>
+                        <div class="card-content">
+                            <h3>Semantic Priming</h3>
+                            <p>Judge related vs. unrelated prime-target word pairs.</p>
+                        </div>
+                        <div class="card-action"><i class="fa-solid fa-arrow-right"></i></div>
+                    </div>
+
+                    <div class="module-card card-gradient-4" onclick="app.startRTTask('ldt')">
+                        <div class="card-icon"><i class="fa-solid fa-spell-check"></i></div>
+                        <div class="card-content">
+                            <h3>Lexical Decision</h3>
+                            <p>Language judgment test for real vs. pseudo-words.</p>
+                        </div>
+                        <div class="card-action"><i class="fa-solid fa-arrow-right"></i></div>
+                    </div>
+
+                    <div class="module-card card-gradient-5" onclick="app.startFluencyTask()">
+                        <div class="card-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+                        <div class="card-content">
+                            <h3>Verbal Fluency</h3>
+                            <p>AI-assisted generative speech & lexical analysis.</p>
+                        </div>
+                        <div class="card-action"><i class="fa-solid fa-arrow-right"></i></div>
+                    </div>
+                </div>
+
+                <div class="credits-footer">
+                    <p>Mentored by: <strong>Dr. Abhishek BP</strong>, Faculty, AIISH Mysore.</p>
+                    <p>Created by: <strong>Mr. Hemaraja Nayaka.S</strong>, Assoc. Prof. in SLP, Yenepoya Medical College.</p>
+                </div>
+            </main>
+        </div>
+
+        <!-- Instructions Screen -->
+        <div id="instructions-screen" class="screen">
+            <div class="glass-panel text-center">
+                <h2 id="inst-title">Instructions</h2>
+                <div class="instructions-content" id="inst-content">
+                    <!-- Injected by JS -->
+                </div>
+                
+                <!-- Desktop Keys -->
+                <div class="keys-info desktop-only" id="inst-keys">
+                    <div class="key-card">
+                        <kbd>F</kbd>
+                        <span id="key-f-label" class="fw-bold">Option 1</span>
+                    </div>
+                    <div class="key-card">
+                        <kbd>J</kbd>
+                        <span id="key-j-label" class="fw-bold">Option 2</span>
+                    </div>
+                </div>
+
+                <!-- Mobile Tap Info -->
+                <div class="mobile-tap-info mobile-only">
+                    <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230d9488'><path d='M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zm9.84 4.63l-4.54-2.26c-.17-.07-.35-.11-.54-.11H13v-6c0-.83-.67-1.5-1.5-1.5S10 6.67 10 7.5v10.74l-3.43-.72c-.08-.01-.15-.03-.24-.03-.31 0-.59.13-.79.33l-.79.8 4.94 4.94c.27.27.65.44 1.04.44h6.79c.75 0 1.33-.55 1.44-1.28l.75-5.27c.01-.07.02-.14.02-.21 0-.69-.38-1.28-.89-1.5z'/></svg>" width="40" alt="tap">
+                    <p>On mobile, tap the <strong style="color:var(--accent-color);">Left</strong> side for Option 1, and the <strong style="color:var(--accent-color);">Right</strong> side for Option 2.</p>
+                </div>
+
+                <button class="primary-btn mt-4 pulse" onclick="app.startExperiment()">
+                    <i class="fa-solid fa-play"></i> Start Assessment
+                </button>
+            </div>
+        </div>
+
+        <!-- RT Experiment Arena -->
+        <div id="experiment-screen" class="screen">
+            <button class="exit-btn" title="End Assessment Early" onclick="app.endExperimentEarly()">
+                <i class="fa-solid fa-circle-xmark"></i> Exit & Save
+            </button>
+
+            <!-- Touch Zones for Mobile -->
+            <div id="touch-left" class="touch-zone touch-left" onclick="app.handleTouch('left')"></div>
+            <div id="touch-right" class="touch-zone touch-right" onclick="app.handleTouch('right')"></div>
+
+            <!-- Visual Feedback Flash -->
+            <div id="rt-feedback" class="rt-feedback-flash hidden"></div>
+
+            <div id="fixation" class="stimulus fixation-cross hidden">+</div>
+            <div id="word-stimulus" class="stimulus lang-stimulus hidden">Word</div>
+            
+            <div class="touch-indicators mobile-only">
+                <div class="indicator hide-on-active" id="ind-left">Option 1</div>
+                <div class="indicator hide-on-active" id="ind-right">Option 2</div>
+            </div>
+        </div>
+
+        <!-- Verbal Fluency Arena -->
+        <div id="fluency-screen" class="screen">
+            <div class="glass-panel" style="width: 95%; max-width: 800px; height: 90vh; display: flex; flex-direction: column;">
+                <button class="exit-btn" style="position: absolute; top: 1rem; right: 1rem; background: rgba(255,100,100,0.2);" title="End Test Early" onclick="app.endFluencyEarly()">
+                    <i class="fa-solid fa-right-from-bracket"></i> Save & End
+                </button>
+                
+                <h2>Verbal Fluency Measure</h2>
+                <p id="fluency-target" class="subtitle" style="font-size: 1.2rem; color: #fff;">Speak as many words as you can.</p>
+
+                <div class="rec-dashboard">
+                    <div class="mic-container">
+                        <button id="record-btn" class="mic-btn" onclick="app.toggleRecording()">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <p id="rec-status" class="status-indicator">Ready to Record</p>
+                    </div>
+
+                    <div class="stats-container">
+                        <div class="stat-box">
+                            <span class="stat-num" id="ai-word-count">0</span>
+                            <span class="stat-name">Lexical Items Found</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="transcript-box">
+                    <h4>Live AI Transcription Panel:</h4>
+                    <div id="live-transcript" class="transcript-content">
+                        Your words will appear here naturally...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="screen">
+            <div class="glass-panel text-center results-panel">
+                <h2>Assessment Completed</h2>
+                <div class="results-kpi-grid" id="results-stats">
+                    <!-- Injected Averages Array by JS -->
+                </div>
+                
+                <div class="data-table-container">
+                    <h3>Raw Trial Data</h3>
+                    <table class="data-table" id="data-table">
+                        <thead>
+                            <tr id="table-head-row">
+                                <!-- Headers injected via JS depending on task -->
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                           <!-- Rows injected via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="primary-btn" onclick="app.exportToCSV()">
+                        <i class="fa-solid fa-download"></i> Download CSV
+                    </button>
+                    <button class="secondary-btn mt-2" onclick="app.returnToMenu()">
+                        <i class="fa-solid fa-house"></i> Main Menu
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+    <script>
+        // Register Service Worker for Offline PWA Support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').then(reg => {
+                    console.log('ServiceWorker registered:', reg.scope);
+                }).catch(err => {
+                    console.error('ServiceWorker registration failed:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

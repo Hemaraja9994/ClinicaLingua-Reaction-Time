@@ -1,0 +1,97 @@
+# -----------------------------------------------------------------------------
+# Publish ClinicaLingua-RT to Cloudflare Pages -> https://clinlingua-rt.pages.dev
+#
+# What this does, in plain words:
+#   Every time the files on the "main" branch change (an upload or an edit on
+#   GitHub, or a merged pull request), GitHub copies the website files listed
+#   in SITE_FILES and uploads them to the existing Cloudflare Pages project
+#   "clinlingua-rt". The address of the site never changes.
+#
+# One-time setup - GitHub repo > Settings > Secrets and variables > Actions:
+#   CLOUDFLARE_API_TOKEN   a Cloudflare API token with  Account > Cloudflare Pages > Edit
+#   CLOUDFLARE_ACCOUNT_ID  your Cloudflare Account ID
+# Until both secrets exist, this workflow skips the upload instead of failing.
+#
+# To publish by hand: Actions tab > "Publish website to Cloudflare" > Run workflow.
+# If the website needs a new file (for example a new image), add its name to
+# SITE_FILES below. Files not listed (README, LICENSE, data) are never published.
+# -----------------------------------------------------------------------------
+name: Publish website to Cloudflare
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two uploads at the same time; a newer one waits for the older one.
+concurrency:
+  group: publish-cloudflare
+  cancel-in-progress: false
+
+env:
+  PROJECT_NAME: clinlingua-rt
+  SITE_FILES: index.html app.js style.css sw.js manifest.json logo.png
+
+jobs:
+  publish:
+    name: Publish to clinlingua-rt.pages.dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      # 1. Stop politely (no red failure) if the Cloudflare key is not added yet.
+      - name: Check the Cloudflare key is set up
+        id: keys
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice title=Website not published::Add the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets to turn on publishing."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # 2. Download this repository's files onto GitHub's machine.
+      - name: Get the code
+        if: steps.keys.outputs.ready == 'true'
+        uses: actions/checkout@v6
+
+      # 3. Put only the website files into a separate folder for upload.
+      - name: Collect the website files
+        if: steps.keys.outputs.ready == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          for f in $SITE_FILES; do
+            cp "$f" "$RUNNER_TEMP/site/"
+          done
+          ls -l "$RUNNER_TEMP/site"
+
+      # 4. Ask Cloudflare which branch is the live one, so the upload replaces
+      #    the public site instead of creating a separate preview copy.
+      - name: Look up the live branch of the Cloudflare project
+        if: steps.keys.outputs.ready == 'true'
+        id: project
+        run: |
+          resp=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT_NAME")
+          branch=$(echo "$resp" | jq -r '.result.production_branch // empty' 2>/dev/null)
+          if [ -z "$branch" ]; then
+            echo "::error title=Cloudflare project not reachable::Could not read the $PROJECT_NAME project. Check that the token has Account > Cloudflare Pages > Edit and that the Account ID is correct."
+            echo "$resp" | jq '{success, errors}' 2>/dev/null || echo "$resp" | head -c 300
+            exit 1
+          fi
+          echo "Publishing to the live branch: $branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      # 5. Upload the folder to Cloudflare Pages (the same tool Cloudflare documents).
+      - name: Upload to Cloudflare Pages
+        if: steps.keys.outputs.ready == 'true'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy ${{ runner.temp }}/site --project-name=${{ env.PROJECT_NAME }} --branch=${{ steps.project.outputs.branch }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

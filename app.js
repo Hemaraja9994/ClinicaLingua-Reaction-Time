@@ -103,6 +103,9 @@ const state = {
     results: [], 
     stimulusStartTime: null,
     phase: 'menu', 
+    practice: false,
+    participantId: '',
+    sessionStart: null,
     config: {
         fixationDuration: 1000, 
         primeDuration: 150, 
@@ -128,11 +131,30 @@ const app = {
     getLang() { return document.getElementById('language-select').value || 'kn'; },
     
     // Task Setup
-    startRTTask(taskType) {
+    // Practice / demo: a short, balanced lexical-decision run (3 real + 3 pseudo words).
+    startPractice() {
+        this.startRTTask('ldt', { practice: true });
+    },
+
+    getParticipantId() {
+        const el = document.getElementById('participant-id');
+        return el && el.value ? String(el.value).trim().slice(0, 40) : '';
+    },
+
+    startRTTask(taskType, opts) {
+        const practice = !!(opts && opts.practice);
+        state.practice = practice;
+        state.participantId = this.getParticipantId();
+        state.sessionStart = new Date();
         state.currentLang = this.getLang();
         state.currentTask = taskType;
         state.phase = 'instructions';
-        state.trials = this.shuffleArray(buildTrials(taskType, state.currentLang));
+        let trials = this.shuffleArray(buildTrials(taskType, state.currentLang));
+        if (practice) {
+            const cats = [...new Set(trials.map(t => t.category))];
+            trials = this.shuffleArray(cats.flatMap(c => trials.filter(t => t.category === c).slice(0, 3)));
+        }
+        state.trials = trials;
         state.currentTrialIndex = 0;
         state.results = [];
 
@@ -179,6 +201,10 @@ const app = {
             state.config.expectedF = 'Related'; state.config.expectedJ = 'Unrelated';
         }
         
+        if (practice) {
+            titleEl.innerText = "Practice run \u2014 " + titleEl.innerText;
+            contentEl.innerHTML = `<p class="practice-note"><i class="fa-solid fa-graduation-cap"></i> Demo / practice mode: ${state.trials.length} short trials. Not intended for clinical scoring.</p>` + contentEl.innerHTML;
+        }
         document.getElementById('ind-left').innerText = fLabel.innerText;
         document.getElementById('ind-right').innerText = jLabel.innerText;
         this.showScreen('instructions-screen');
@@ -320,6 +346,9 @@ const app = {
 
         const statsDiv = document.getElementById('results-stats');
         statsDiv.innerHTML = '';
+        this.renderSessionSummary();
+        const chartEl = document.getElementById('rt-chart');
+        if (chartEl) chartEl.innerHTML = '';
         if (state.results.length === 0) { statsDiv.innerHTML = '<p>No data recorded.</p>'; return; }
 
         // ── Overall accuracy card (E-Prime / PsychoPy style top-level summary) ──
@@ -367,6 +396,9 @@ const app = {
                 : 'N/A';
             statsDiv.innerHTML += `<div class="stat-row"><span class="stat-label">${cat} (n=${data.count})</span><span class="stat-value">Acc: ${acc}% &nbsp;|&nbsp; Mean Correct RT: ${mRT}</span></div>`;
         }
+
+        // ── RT distribution chart (correct, timed responses) ──
+        if (chartEl) chartEl.innerHTML = this.buildRtChartSvg(state.results);
 
         // ── Table ──
         const trH = document.getElementById('table-head-row');
@@ -436,7 +468,8 @@ const app = {
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `ClinLingua_${state.currentTask}_${new Date().toISOString().split('T')[0]}.csv`);
+        const pid = (state.participantId || '').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+        link.setAttribute("download", `ClinLingua_${state.currentTask}${state.practice ? '_practice' : ''}${pid ? '_' + pid : ''}_${new Date().toISOString().split('T')[0]}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -446,6 +479,9 @@ const app = {
     // Fluency App
     startFluencyTask() {
         state.currentTask = 'fluency';
+        state.practice = false;
+        state.participantId = this.getParticipantId();
+        state.sessionStart = new Date();
         state.currentLang = this.getLang();
         state.phase = 'instructions';
         state.fluency.isRecording = false; state.fluency.wordCount = 0; state.fluency.finalTranscript = '';
@@ -528,6 +564,10 @@ const app = {
     endFluencyEarly() {
         if (state.fluency.isRecording) this.toggleRecording();
         state.phase = 'results'; this.showScreen('results-screen');
+        state.practice = false;
+        this.renderSessionSummary();
+        const chartEl = document.getElementById('rt-chart');
+        if (chartEl) chartEl.innerHTML = '';
         
         document.getElementById('results-stats').innerHTML = `<div class="stat-row"><span class="stat-label">AI Lexical Word Count:</span><span class="stat-value">${state.fluency.wordCount} words</span></div>`;
         document.getElementById('table-head-row').innerHTML = `<th>Full AI Lexical Transcription</th>`;
@@ -540,6 +580,77 @@ const app = {
         this.showScreen('menu-screen');
     },
     
+    escapeHtml(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    },
+
+    taskLabel(task) {
+        return ({ familiarity: 'Word Familiarity', ambiguity: 'Semantic Ambiguity', priming: 'Semantic Priming', ldt: 'Lexical Decision', fluency: 'Verbal Fluency' })[task] || String(task || '');
+    },
+
+    // Participant / session summary shown on the results screen and in the printed report.
+    renderSessionSummary() {
+        const el = document.getElementById('session-summary');
+        const title = document.getElementById('results-title');
+        if (title) title.innerText = state.practice ? 'Practice Run Completed' : 'Assessment Completed';
+        if (!el) return;
+        const start = state.sessionStart || new Date();
+        const items = [
+            ['Participant', state.participantId || '\u2014'],
+            ['Task', this.taskLabel(state.currentTask) + (state.practice ? ' (practice)' : '')],
+            ['Language', (rawDicts[state.currentLang] && rawDicts[state.currentLang].bcp47) || state.currentLang],
+            ['Date', start.toLocaleString()],
+            ['Trials', state.currentTask === 'fluency' ? '\u2014' : String(state.results.length)]
+        ];
+        el.innerHTML = items.map(([k, v]) => `<div class="ss-item"><span class="ss-k">${k}</span><span class="ss-v">${this.escapeHtml(v)}</span></div>`).join('')
+            + (state.practice ? '<p class="practice-note"><i class="fa-solid fa-graduation-cap"></i> Practice / demo data \u2014 not for clinical interpretation.</p>' : '');
+    },
+
+    // Inline SVG histogram of correct-response RTs, one colour per condition.
+    buildRtChartSvg(results) {
+        const timed = results.filter(r => r.isCorrect && typeof r.reactionTimeMs === 'number');
+        if (timed.length === 0) return '<p class="chart-empty">No correct, timed responses to chart.</p>';
+        const cats = [...new Set(results.map(r => r.category))];
+        const colors = ['#ff7a59', '#5eead4', '#c4b5fd', '#fde047'];
+        const max = Math.max(...timed.map(r => r.reactionTimeMs));
+        const binW = max <= 1000 ? 100 : max <= 2000 ? 200 : max <= 5000 ? 500 : 1000;
+        const nBins = Math.max(1, Math.ceil((max + 1) / binW));
+        const counts = cats.map(() => new Array(nBins).fill(0));
+        timed.forEach(r => { counts[cats.indexOf(r.category)][Math.min(nBins - 1, Math.floor(r.reactionTimeMs / binW))]++; });
+        const totals = new Array(nBins).fill(0).map((_, i) => counts.reduce((a, c) => a + c[i], 0));
+        const yMax = Math.max(1, ...totals);
+        const W = 640, H = 220, padL = 34, padB = 34, padT = 12, innerW = W - padL - 10, innerH = H - padB - padT;
+        const bw = innerW / nBins;
+        let bars = '';
+        for (let i = 0; i < nBins; i++) {
+            let y0 = H - padB;
+            cats.forEach((c, ci) => {
+                const n = counts[ci][i]; if (!n) return;
+                const h = (n / yMax) * innerH; y0 -= h;
+                bars += `<rect x="${(padL + i * bw + 2).toFixed(1)}" y="${y0.toFixed(1)}" width="${Math.max(1, bw - 4).toFixed(1)}" height="${h.toFixed(1)}" fill="${colors[ci % colors.length]}" rx="2"><title>${this.escapeHtml(c)}: ${n} (${i * binW}\u2013${(i + 1) * binW} ms)</title></rect>`;
+            });
+        }
+        const step = Math.max(1, Math.ceil(nBins / 8));
+        let xl = '';
+        for (let i = 0; i <= nBins; i += step) xl += `<text x="${(padL + i * bw).toFixed(1)}" y="${H - padB + 16}" text-anchor="middle">${i * binW}</text>`;
+        const yl = `<text x="${padL - 6}" y="${padT + 8}" text-anchor="end">${yMax}</text><text x="${padL - 6}" y="${H - padB}" text-anchor="end">0</text>`;
+        const legend = cats.map((c, ci) => `<span class="legend-item"><i style="background:${colors[ci % colors.length]}"></i>${this.escapeHtml(c)}</span>`).join('');
+        const sorted = timed.map(r => r.reactionTimeMs).sort((a, b) => a - b);
+        const median = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : Math.round((sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2);
+        return `<h3>RT distribution <span>(correct responses, ${binW} ms bins &middot; median ${median} ms)</span></h3>
+            <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Histogram of correct-response reaction times">
+                <line x1="${padL}" y1="${H - padB}" x2="${W - 10}" y2="${H - padB}" class="axis"/>
+                <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" class="axis"/>
+                ${bars}${xl}${yl}
+                <text x="${padL + innerW / 2}" y="${H - 4}" text-anchor="middle" class="axis-title">Reaction time (ms)</text>
+            </svg>
+            <div class="chart-legend">${legend}</div>`;
+    },
+
+    printReport() {
+        window.print();
+    },
+
     shuffleArray(array) {
         let currentIndex = array.length, randomIndex;
         while (currentIndex > 0) {

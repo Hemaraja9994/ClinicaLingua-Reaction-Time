@@ -1,5 +1,5 @@
 // Bump this version string on every deploy to invalidate old caches.
-const CACHE_VERSION = 'v3-lagoon-2026-04-17';
+const CACHE_VERSION = 'v4-fixes-2026-10-26';
 const CACHE_NAME = `clinlingua-rt-${CACHE_VERSION}`;
 
 const urlsToCache = [

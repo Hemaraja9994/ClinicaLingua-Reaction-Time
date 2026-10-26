@@ -234,6 +234,9 @@ const app = {
         const trial = state.trials[state.currentTrialIndex];
         const stimulusEl = document.getElementById('word-stimulus');
         stimulusEl.innerText = trial.word;
+        // Reset onset stamp for this target; it is set on the first painted frame.
+        // Responses before then are flagged as anticipatory (no valid RT).
+        state.stimulusStartTime = null;
         stimulusEl.classList.remove('hidden');
 
         requestAnimationFrame(() => { state.stimulusStartTime = performance.now(); });
@@ -243,7 +246,7 @@ const app = {
     handleTouch(side) {
         if (state.phase !== 'stimulus') return;
         const simulatedKey = (side === 'left') ? state.config.keyMapping.leftKey : state.config.keyMapping.rightKey;
-        this.recordResponse(simulatedKey, performance.now() - state.stimulusStartTime);
+        this.recordResponse(simulatedKey, this.currentRt());
     },
     handleKeydown(e) {
         if (state.phase === 'instructions' && e.code === 'Space') { this.startExperiment(); return; }
@@ -251,8 +254,13 @@ const app = {
         const key = e.key.toLowerCase();
         if (key === state.config.keyMapping.leftKey || key === state.config.keyMapping.rightKey) {
             if(e.code === 'Space') e.preventDefault();
-            this.recordResponse(key, performance.now() - state.stimulusStartTime);
+            this.recordResponse(key, this.currentRt());
         }
+    },
+
+    // RT from the current target's onset, or null if the onset has not been stamped yet (anticipatory).
+    currentRt() {
+        return state.stimulusStartTime === null ? null : performance.now() - state.stimulusStartTime;
     },
 
     recordResponse(keypressed, rt) {
@@ -262,11 +270,13 @@ const app = {
         let userChoice = (keypressed === state.config.keyMapping.leftKey) ? document.getElementById('key-f-label').innerText : document.getElementById('key-j-label').innerText;
         let intendedCategory = (keypressed === state.config.keyMapping.leftKey) ? state.config.expectedF : state.config.expectedJ;
         
-        let isCorrect = (intendedCategory === trial.category);
+        const anticipatory = (rt === null || rt === undefined);
+        // Anticipatory responses (before target onset) are scored incorrect and carry no RT.
+        let isCorrect = !anticipatory && (intendedCategory === trial.category);
 
-        const rawRt = Math.round(rt);
+        const rawRt = anticipatory ? null : Math.round(rt);
         // DMDX / E-Prime convention: negative RT signals an incorrect response
-        const signedRt = isCorrect ? rawRt : -rawRt;
+        const signedRt = anticipatory ? null : (isCorrect ? rawRt : -rawRt);
 
         state.results.push({
             trialNumber: state.currentTrialIndex + 1,
@@ -276,13 +286,17 @@ const app = {
             userChoice: userChoice,
             isCorrect: isCorrect,
             reactionTimeMs: rawRt,
-            signedRt: signedRt
+            signedRt: signedRt,
+            anticipatory: anticipatory
         });
 
         document.getElementById('word-stimulus').classList.add('hidden');
         
         const feedbackEl = document.getElementById('rt-feedback');
-        if (isCorrect) {
+        if (anticipatory) {
+            feedbackEl.innerHTML = `<span>&#9888;</span> Too early`;
+            feedbackEl.style.color = 'var(--warning-color)';
+        } else if (isCorrect) {
             feedbackEl.innerHTML = `<span>&#10003;</span> ${rawRt} ms`;
             feedbackEl.style.color = 'var(--success-color)';
         } else {
@@ -313,7 +327,7 @@ const app = {
         const totalCorrect = state.results.filter(r => r.isCorrect).length;
         const overallAcc = Math.round((totalCorrect / totalItems) * 100);
         const correctRts = state.results.filter(r => r.isCorrect).map(r => r.reactionTimeMs);
-        const incorrectRts = state.results.filter(r => !r.isCorrect).map(r => r.reactionTimeMs);
+        const incorrectRts = state.results.filter(r => !r.isCorrect && !r.anticipatory).map(r => r.reactionTimeMs);
         const meanCorrectRt = correctRts.length ? Math.round(correctRts.reduce((a,b) => a+b,0) / correctRts.length) : 'N/A';
         const meanErrorRt  = incorrectRts.length ? Math.round(incorrectRts.reduce((a,b) => a+b,0) / incorrectRts.length) : 'N/A';
 
@@ -341,7 +355,7 @@ const app = {
             if (res.isCorrect) {
                 categories[res.category].correct += 1;
                 categories[res.category].correctRts.push(res.reactionTimeMs);
-            } else {
+            } else if (!res.anticipatory) {
                 categories[res.category].errorRts.push(res.reactionTimeMs);
             }
         });
@@ -370,7 +384,9 @@ const app = {
                 ? `<span class="acc-badge acc-correct">&#10003; Correct</span>`
                 : `<span class="acc-badge acc-wrong">&#10007; Wrong</span>`;
             // Signed RT: negative shown in red for errors (DMDX convention)
-            const rtCell = r.isCorrect
+            const rtCell = r.anticipatory
+                ? `<span class="wrong-td">anticipatory</span>`
+                : r.isCorrect
                 ? `<span class="correct-td">${r.reactionTimeMs}</span>`
                 : `<span class="wrong-td">&minus;${r.reactionTimeMs}</span>`;
             tr.className = r.isCorrect ? 'row-correct' : 'row-error';
@@ -394,23 +410,23 @@ const app = {
     },
 
     exportToCSV() {
-        let csvContent = " \uFEFF"; // Includes BOM for UTF-8 Indian scripts
+        let csvContent = "\uFEFF"; // Includes BOM for UTF-8 Indian scripts
         
         if (state.currentTask === 'fluency') {
             csvContent += "Language,LexicalCount,Transcript\n";
             let transcriptSafe = state.fluency.finalTranscript.replace(/"/g, '""');
-            csvContent += `${dicts[state.currentLang]?.bcp47 || 'en'},${state.fluency.wordCount},"${transcriptSafe}"\n`;
+            csvContent += `${rawDicts[state.currentLang]?.bcp47 || 'en'},${state.fluency.wordCount},"${transcriptSafe}"\n`;
         } else {
             if (state.currentTask === 'priming') {
-                 csvContent += "Trial,Prime,Target,IntendedCategory,UserChoice,Correct(1=Yes/0=No),ReactionTimeMs,SignedRT(neg=error)\n";
+                 csvContent += "Trial,Prime,Target,IntendedCategory,UserChoice,Correct(1=Yes/0=No),ReactionTimeMs,SignedRT(neg=error),Anticipatory(1=Yes)\n";
                  state.results.forEach(res => {
-                    csvContent += [res.trialNumber, `"${res.prime}"`, `"${res.word}"`, res.category, res.userChoice, res.isCorrect ? 1 : 0, res.reactionTimeMs, res.signedRt].join(",") + "\n";
+                    csvContent += [res.trialNumber, `"${res.prime}"`, `"${res.word}"`, res.category, res.userChoice, res.isCorrect ? 1 : 0, res.anticipatory ? "" : res.reactionTimeMs, res.anticipatory ? "" : res.signedRt, res.anticipatory ? 1 : 0].join(",") + "\n";
                  });
             } else {
                  // SignedRT: negative for incorrect (DMDX / E-Prime convention)
-                 csvContent += "Trial,Word,IntendedCategory,UserChoice,Correct(1=Yes/0=No),ReactionTimeMs,SignedRT(neg=error)\n";
+                 csvContent += "Trial,Word,IntendedCategory,UserChoice,Correct(1=Yes/0=No),ReactionTimeMs,SignedRT(neg=error),Anticipatory(1=Yes)\n";
                  state.results.forEach(res => {
-                    csvContent += [res.trialNumber, `"${res.word}"`, res.category, res.userChoice, res.isCorrect ? 1 : 0, res.reactionTimeMs, res.signedRt].join(",") + "\n";
+                    csvContent += [res.trialNumber, `"${res.word}"`, res.category, res.userChoice, res.isCorrect ? 1 : 0, res.anticipatory ? "" : res.reactionTimeMs, res.anticipatory ? "" : res.signedRt, res.anticipatory ? 1 : 0].join(",") + "\n";
                  });
             }
         }

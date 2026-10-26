@@ -6,7 +6,7 @@
     <title>Clinical Lingua-RT Suite</title>
     <!-- Web App Manifest for Phone Installation -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#020617">
+    <meta name="theme-color" content="#160f24">
     <link rel="apple-touch-icon" href="logo.png">
     
     <link rel="stylesheet" href="style.css">
@@ -42,7 +42,30 @@
 
             <!-- Main Dashboard Area -->
             <main class="dashboard-main">
-                <div class="dashboard-header">
+                <section class="hero" aria-labelledby="hero-title">
+                    <span class="hero-eyebrow"><i class="fa-solid fa-stopwatch"></i> Reaction-time &amp; lexical-access toolkit</span>
+                    <h2 id="hero-title">How fast does the mind <em>find a word?</em></h2>
+                    <p class="hero-sub">Millisecond reaction-time tasks for word familiarity, semantic ambiguity, semantic priming and lexical decision &mdash; in English, Kannada, Hindi, Telugu, Malayalam and Tamil. Runs in the browser on a phone or laptop, with an instant accuracy &amp; RT summary and a UTF-8 CSV export.</p>
+                    <div class="hero-actions">
+                        <button class="primary-btn hero-cta" onclick="app.startPractice()">
+                            <i class="fa-solid fa-play"></i> Try a sample in 30 seconds
+                        </button>
+                        <a class="secondary-btn hero-link" href="#modules"><i class="fa-solid fa-table-cells-large"></i> Browse modules</a>
+                    </div>
+                    <div class="participant-field">
+                        <label for="participant-id"><i class="fa-solid fa-user-tag"></i> Participant / session ID <span>(optional, kept on this device)</span></label>
+                        <input id="participant-id" type="text" maxlength="40" placeholder="e.g. P-014" autocomplete="off">
+                    </div>
+                    <p class="hero-url"><i class="fa-solid fa-link"></i> clinlingua-rt.pages.dev</p>
+                </section>
+
+                <ol class="how-steps" aria-label="How it works">
+                    <li><span class="step-num">1</span><div><strong>Pick a language &amp; task</strong><p>Choose from the menu at the top, then a module below.</p></div></li>
+                    <li><span class="step-num">2</span><div><strong>Respond fast</strong><p>Press <kbd>F</kbd> / <kbd>J</kbd>, or tap the left / right half of a phone screen.</p></div></li>
+                    <li><span class="step-num">3</span><div><strong>Review &amp; export</strong><p>RT distribution chart, per-condition summary, printable report and CSV.</p></div></li>
+                </ol>
+
+                <div class="dashboard-header" id="modules">
                     <h2>Assessment Modules</h2>
                     <p>Select a clinical protocol to launch</p>
                 </div>
@@ -193,11 +216,15 @@
         <!-- Results Screen -->
         <div id="results-screen" class="screen">
             <div class="glass-panel text-center results-panel">
-                <h2>Assessment Completed</h2>
+                <p class="print-only print-brand">ClinLingua Suite &middot; Session report &middot; clinlingua-rt.pages.dev</p>
+                <h2 id="results-title">Assessment Completed</h2>
+                <div id="session-summary" class="session-summary"></div>
                 <div class="results-kpi-grid" id="results-stats">
                     <!-- Injected Averages Array by JS -->
                 </div>
                 
+                <div id="rt-chart" class="rt-chart"></div>
+
                 <div class="data-table-container">
                     <h3>Raw Trial Data</h3>
                     <table class="data-table" id="data-table">
@@ -215,6 +242,9 @@
                 <div class="action-buttons">
                     <button class="primary-btn" onclick="app.exportToCSV()">
                         <i class="fa-solid fa-download"></i> Download CSV
+                    </button>
+                    <button class="secondary-btn" onclick="app.printReport()">
+                        <i class="fa-solid fa-print"></i> Print / Save PDF
                     </button>
                     <button class="secondary-btn mt-2" onclick="app.returnToMenu()">
                         <i class="fa-solid fa-house"></i> Main Menu
